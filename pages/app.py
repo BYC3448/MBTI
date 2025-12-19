@@ -6,65 +6,81 @@ st.set_page_config(page_title="국가별 MBTI 성향 분석", layout="wide")
 
 st.title("국가별 MBTI 성향 분석 대시보드")
 
-# 데이터 로드 함수
+# 데이터 로드 및 전처리 함수
 @st.cache_data
 def load_data():
-    # 같은 폴더에 있는 mbti_data.csv 파일을 읽어옵니다.
-    # 파일이 없을 경우를 대비해 예외 처리를 합니다.
     try:
-        df = pd.read_csv('mbti_data.csv')
-        return df
+        # 1. 파일 읽기
+        df = pd.read_csv('countries.csv')
+        
+        # 2. 데이터 전처리: -A와 -T로 나뉜 32개 유형을 16개 표준 MBTI로 통합
+        mbti_types = [
+            'ESTJ', 'ESFJ', 'INFP', 'ENFP', 'ISFJ', 'ENFJ', 'ESTP', 'ISTJ',
+            'INTP', 'INFJ', 'ISFP', 'ENTJ', 'ESFP', 'ENTP', 'INTJ', 'ISTP'
+        ]
+        
+        # 결과를 담을 새로운 데이터프레임 생성 (국가명 포함)
+        df_processed = df[['Country']].copy()
+        
+        # 16개 유형별로 -A와 -T 컬럼을 더해서 합산
+        for mbti in mbti_types:
+            col_a = f"{mbti}-A"
+            col_t = f"{mbti}-T"
+            
+            # 해당 컬럼들이 데이터에 있는지 확인 후 더하기
+            if col_a in df.columns and col_t in df.columns:
+                # 소수점 데이터(예: 0.12)를 퍼센트(예: 12.0)로 변환하기 위해 100을 곱함
+                df_processed[mbti] = (df[col_a] + df[col_t]) * 100
+        
+        return df_processed
+        
     except FileNotFoundError:
         return None
 
 df = load_data()
 
 if df is None:
-    st.error("데이터 파일을 찾을 수 없습니다. 같은 폴더에 'mbti_data.csv' 파일이 있는지 확인해주세요.")
+    st.error("데이터 파일을 찾을 수 없습니다. 같은 폴더에 'countries.csv' 파일이 있는지 확인해주세요.")
 else:
-    # 데이터가 정상적으로 로드되었을 때 실행되는 영역입니다.
-    
     # 1. 전체 국가의 MBTI 평균 비율 분석
     st.header("1. 전 세계 MBTI 평균 비율")
-    st.write("전체 국가 데이터를 바탕으로 산출한 각 MBTI 유형별 평균 비율입니다.")
+    st.write("전 세계 국가들의 MBTI 데이터를 종합하여 산출한 평균 비율입니다.")
 
-    # 숫자 데이터만 추출하여 평균 계산 (국가명 컬럼 제외)
-    # Country 컬럼이 있으면 제외하고 나머지(MBTI 유형)만 선택
-    if 'Country' in df.columns:
-        mbti_columns = [col for col in df.columns if col != 'Country']
-        # 평균 계산 후 내림차순 정렬
-        avg_mbti = df[mbti_columns].mean().sort_values(ascending=False)
-        
-        # 막대 그래프로 시각화
-        st.bar_chart(avg_mbti)
-        
-        # 상위 3개 유형 텍스트로 안내
-        top_3 = avg_mbti.index[:3].tolist()
-        st.write(f"전 세계적으로 가장 비율이 높은 유형 Top 3는 {', '.join(top_3)} 입니다.")
+    # MBTI 컬럼만 선택 (Country 제외)
+    mbti_columns = [col for col in df.columns if col != 'Country']
+    
+    # 평균 계산 후 내림차순 정렬
+    avg_mbti = df[mbti_columns].mean().sort_values(ascending=False)
+    
+    # 막대 그래프로 시각화
+    st.bar_chart(avg_mbti)
+    
+    # 상위 3개 유형 텍스트로 안내
+    top_3 = avg_mbti.index[:3].tolist()
+    st.write(f"전 세계적으로 가장 흔한 유형 Top 3는 **{', '.join(top_3)}** 입니다.")
 
     st.divider()
 
     # 2. MBTI 유형별 높은 국가 Top 10
     st.header("2. MBTI 유형별 비율이 높은 국가 Top 10")
     
-    # 분석할 MBTI 유형 선택 박스
-    selected_mbti = st.selectbox("분석하고 싶은 MBTI 유형을 선택하세요:", mbti_columns)
+    selected_mbti = st.selectbox("순위를 보고 싶은 MBTI 유형을 선택하세요:", mbti_columns)
 
     if selected_mbti:
         # 선택한 유형 기준으로 내림차순 정렬 후 상위 10개 추출
         top_10_countries = df[['Country', selected_mbti]].sort_values(by=selected_mbti, ascending=False).head(10)
         
-        # 인덱스 재설정 (순위 보기 좋게 1위부터 시작하도록)
+        # 순위 보기 좋게 인덱스 조정 (1위부터 시작)
         top_10_countries = top_10_countries.reset_index(drop=True)
         top_10_countries.index = top_10_countries.index + 1
         
         col1, col2 = st.columns([1, 2])
         
         with col1:
-            st.dataframe(top_10_countries)
+            st.write(f"**{selected_mbti} 비율 상위 10개국**")
+            st.dataframe(top_10_countries.style.format({selected_mbti: "{:.2f}%"}))
         
         with col2:
-            # 시각화를 위해 국가명을 인덱스로 설정
             chart_data = top_10_countries.set_index('Country')
             st.bar_chart(chart_data)
 
@@ -73,7 +89,33 @@ else:
     # 3. 한국과 다른 국가 비교 분석
     st.header("3. 한국 vs 다른 국가 MBTI 비교")
 
-    # 국가 리스트 생성
     country_list = df['Country'].tolist()
+    korea_name = 'South Korea' # 파일에 있는 한국 영문명 확인 완료
 
-    # 한국이 데이터에 있는지 확인하고 기본값
+    # 비교할 국가 선택 (기본값 설정)
+    default_idx = 0
+    if "United States" in country_list:
+        default_idx = country_list.index("United States")
+        
+    target_country = st.selectbox("한국과 비교할 국가를 선택하세요:", country_list, index=default_idx)
+
+    if korea_name not in country_list:
+        st.warning(f"데이터에서 '{korea_name}'를 찾을 수 없습니다.")
+    else:
+        # 데이터 추출
+        korea_data = df[df['Country'] == korea_name][mbti_columns].T
+        target_data = df[df['Country'] == target_country][mbti_columns].T
+        
+        # 비교용 데이터프레임 생성
+        comparison_df = pd.DataFrame({
+            korea_name: korea_data.iloc[:, 0],
+            target_country: target_data.iloc[:, 0]
+        })
+
+        st.write(f"**{korea_name}**와 **{target_country}**의 성향 비교")
+        
+        # 선 그래프로 비교
+        st.line_chart(comparison_df)
+        
+        with st.expander("상세 수치 데이터 보기"):
+            st.dataframe(comparison_df.

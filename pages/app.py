@@ -10,7 +10,7 @@ st.title("국가별 MBTI 성향 분석 대시보드")
 @st.cache_data
 def load_data():
     try:
-        # 1. 파일 읽기
+        # 1. 파일 읽기 (countries.csv)
         df = pd.read_csv('countries.csv')
         
         # 2. 데이터 전처리: -A와 -T로 나뉜 32개 유형을 16개 표준 MBTI로 통합
@@ -35,6 +35,9 @@ def load_data():
         return df_processed
         
     except FileNotFoundError:
+        return None
+    except Exception as e:
+        st.error(f"오류가 발생했습니다: {e}")
         return None
 
 df = load_data()
@@ -78,6 +81,7 @@ else:
         
         with col1:
             st.write(f"**{selected_mbti} 비율 상위 10개국**")
+            # 퍼센트 포맷 적용
             st.dataframe(top_10_countries.style.format({selected_mbti: "{:.2f}%"}))
         
         with col2:
@@ -90,9 +94,9 @@ else:
     st.header("3. 한국 vs 다른 국가 MBTI 비교")
 
     country_list = df['Country'].tolist()
-    korea_name = 'South Korea' # 파일에 있는 한국 영문명 확인 완료
+    korea_name = 'South Korea' # 파일에 있는 한국 영문명
 
-    # 비교할 국가 선택 (기본값 설정)
+    # 비교할 국가 선택 (기본값 설정: 미국)
     default_idx = 0
     if "United States" in country_list:
         default_idx = country_list.index("United States")
@@ -102,7 +106,7 @@ else:
     if korea_name not in country_list:
         st.warning(f"데이터에서 '{korea_name}'를 찾을 수 없습니다.")
     else:
-        # 데이터 추출
+        # 데이터 추출 (전치행렬 T 사용)
         korea_data = df[df['Country'] == korea_name][mbti_columns].T
         target_data = df[df['Country'] == target_country][mbti_columns].T
         
@@ -117,5 +121,6 @@ else:
         # 선 그래프로 비교
         st.line_chart(comparison_df)
         
-        with st.expander("상세 수치 데이터 보기"):
-            st.dataframe(comparison_df.
+        with st.expander("상세 수치 데이터 표 보기"):
+            # 여기가 오류가 났던 부분입니다. 괄호를 확실히 닫았습니다.
+            st.dataframe(comparison_df.style.format("{:.2f}%"))
